@@ -3,30 +3,88 @@
 #include <RF24.h>
 #include <RF24_config.h>
 
-const CE_PIN = 0;//TODO
-const CSN_PIN = 0;//TODO
+#define CE_PIN 0 //TODO
+#define CSN_PIN 0 //TODO
+#define READING_PIPE 0xE7E7E7E7E7
+#define WRITING_PIPE 0xC2C2C2C2C2
+#define PAYLOAD_SIZE 32
 
-const BTN_1_PIN = 6;
-const BTN_2_PIN = 7;
-const BTN_3_PIN = 8;
+#define BTN_1_PIN 6
+#define BTN_2_PIN 7
+#define BTN_3_PIN 8
+
+#define LED_1 0x01
+#define LED_2 0x02
+#define LED_3 0x03
+
+#define CORRECT_BUTTONS 0x04
+#define WRONG_BUTTONS 0x05
+
+uint8_t ledSequence[PAYLOAD_SIZE];
+uint8_t sequenceIndex = 0;
+bool waitForSequence = true;
+bool btn1Prev = LOW;
+bool btn2Prev = LOW;
+bool btn3Prev = LOW;
 
 RF24 rf24(CE_PIN, CSN_PIN);
 
 void setup() {
   Serial.begin(57600);
   pinMode(BTN_1_PIN, INPUT);
+  pinMode(BTN_2_PIN, INPUT);
+  pinMode(BTN_3_PIN, INPUT);
   rf24.begin();
   rf24.setChannel(13);
   rf24.setPALevel(RF24_PA_MIN);
-  //TODO Check the datasheet for restrictions on the intended receiving and transmitting addresses. (For example, 0xc2c2c2c2c2 and 0xe7e7e7e7e7 are good values to use.) In the setup code, set the writing and reading pipes in both sets of code accordingly. Make sure the reading pipe address of the transmitter matches the writing pipe address of the receiver and vice versa.
+  rf24.openReadingPipe(1, READING_PIPE);
+  rf24.openWritingPipe(WRITING_PIPE);
   rf24.setCRCLength(RF24_CRC_16);
+  
+  rf24.setPayloadSize(PAYLOAD_SIZE);
+
+  rf24.startListening();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  Serial.println(digitalRead(BTN_1_PIN));
-  rf24.startListening();
-  //TODO: In the loop, call the available function to check when there are bytes to be read.
-  rf24.stopListening();
-  delay(10);
+  bool btn1State = digitalRead(BTN_1_PIN);
+  bool btn2State = digitalRead(BTN_2_PIN);
+  bool btn3State = digitalRead(BTN_3_PIN);
+  if (waitForSequence) {
+    if(rf24.available()) {
+      rf24.read(&ledSequence, PAYLOAD_SIZE);
+      rf24.stopListening();
+      waitForSequence = false;
+    }
+  } else {
+    if (btn1State == HIGH && btn1Prev == LOW) {
+      checkInput(LED_1);
+    } else if (btn2State == HIGH && btn2Prev == LOW) {
+      checkInput(LED_2);
+    } else if (btn3State == HIGH && btn3Prev == LOW) {
+      checkInput(LED_3);
+    } 
+  }
+  btn1Prev = btn1State;
+  btn2Prev = btn2State;
+  btn3Prev = btn3State;
+}
+
+void checkInput(uint8_t LED_NUM) {
+  if (LED_NUM == ledSequence[sequenceIndex]) {
+    sequenceIndex++;
+    if (sequenceIndex == PAYLOAD_SIZE || ledSequence[sequenceIndex] == 0) {
+      uint8_t message[1] = {CORRECT_BUTTONS};
+      rf24.write(message, 1);
+      sequenceIndex = 0;
+      waitForSequence = true;
+      rf24.startListening();
+    }
+  } else {
+    uint8_t message[1] = {WRONG_BUTTONS};
+    rf24.write(message, 1);
+    sequenceIndex = 0;
+    waitForSequence = true;
+    rf24.startListening();
+  }
 }
