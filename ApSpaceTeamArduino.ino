@@ -20,7 +20,8 @@
 #define CORRECT_BUTTONS 0x04
 #define WRONG_BUTTONS 0x05
 
-uint8_t ledSequence[PAYLOAD_SIZE];
+const uint16_t maxSequenceLength = 1024;
+uint8_t ledSequence[maxSequenceLength];
 uint8_t sequenceIndex = 0;
 bool waitForSequence = true;
 bool btn1Prev = LOW;
@@ -40,9 +41,7 @@ void setup() {
   rf24.openReadingPipe(1, READING_PIPE);
   rf24.openWritingPipe(WRITING_PIPE);
   rf24.setCRCLength(RF24_CRC_16);
-  
   rf24.setPayloadSize(PAYLOAD_SIZE);
-
   rf24.startListening();
 }
 
@@ -51,8 +50,14 @@ void loop() {
   bool btn2State = digitalRead(BTN_2_PIN);
   bool btn3State = digitalRead(BTN_3_PIN);
   if (waitForSequence) {
-    if(rf24.available()) {
-      rf24.read(&ledSequence, PAYLOAD_SIZE);
+    int sequenceReadIndex = 0;
+    while(rf24.available()) {
+      uint8_t payload_in[PAYLOAD_SIZE];
+      rf24.read(&payload_in, PAYLOAD_SIZE);
+      for(int i = 0; i < PAYLOAD_SIZE; i++){
+        ledSequence[sequenceReadIndex] = payload_in[i];
+        sequenceReadIndex++;
+      }
       rf24.stopListening();
       waitForSequence = false;
     }
@@ -68,23 +73,22 @@ void loop() {
   btn1Prev = btn1State;
   btn2Prev = btn2State;
   btn3Prev = btn3State;
-}
+}  
 
 void checkInput(uint8_t LED_NUM) {
   if (LED_NUM == ledSequence[sequenceIndex]) {
     sequenceIndex++;
-    if (sequenceIndex == PAYLOAD_SIZE || ledSequence[sequenceIndex] == 0) {
+    if (sequenceIndex == maxSequenceLength || ledSequence[sequenceIndex] == 0) {
       uint8_t message[1] = {CORRECT_BUTTONS};
       rf24.write(message, 1);
       sequenceIndex = 0;
       waitForSequence = true;
-      rf24.startListening();
     }
   } else {
     uint8_t message[1] = {WRONG_BUTTONS};
     rf24.write(message, 1);
     sequenceIndex = 0;
     waitForSequence = true;
-    rf24.startListening();
   }
+  rf24.startListening();
 }
