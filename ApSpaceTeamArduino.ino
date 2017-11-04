@@ -3,8 +3,8 @@
 #include <RF24.h>
 #include <RF24_config.h>
 
-#define CE_PIN 0 //TODO
-#define CSN_PIN 0 //TODO
+#define CE_PIN 9
+#define CSN_PIN 10
 #define READING_PIPE 0xE7E7E7E7E7
 #define WRITING_PIPE 0xC2C2C2C2C2
 #define PAYLOAD_SIZE 32
@@ -53,6 +53,7 @@ void loop() {
   if (waitForSequence) {
     if(rf24.available()) {
       rf24.read(&ledSequence, PAYLOAD_SIZE);
+      Serial.println(ledSequence[0]);
       rf24.stopListening();
       waitForSequence = false;
     }
