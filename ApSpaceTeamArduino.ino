@@ -54,8 +54,10 @@ void loop() {
     if(rf24.available()) {
       rf24.read(&ledSequence, PAYLOAD_SIZE);
       Serial.println(ledSequence[0]);
-      rf24.stopListening();
-      waitForSequence = false;
+      if (ledSequence[0] != 0) {
+        rf24.stopListening();
+        waitForSequence = false;
+      }
     }
   } else {
     if (btn1State == HIGH && btn1Prev == LOW) {
