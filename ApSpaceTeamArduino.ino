@@ -28,6 +28,9 @@ bool btn2Prev = LOW;
 bool btn3Prev = LOW;
 
 RF24 rf24(CE_PIN, CSN_PIN);
+uint8_t received_data[PAYLOAD_SIZE];
+
+int curr_index = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -36,67 +39,63 @@ void setup() {
   pinMode(BTN_3_PIN, INPUT);
   rf24.begin();
   rf24.setChannel(13);
-  rf24.setPALevel(RF24_PA_MIN);
-  //rf24.openReadingPipe(1, READING_PIPE);
+  rf24.setPALevel(RF24_PA_MAX);
+  rf24.openReadingPipe(1, READING_PIPE);
   rf24.openWritingPipe(WRITING_PIPE);
   rf24.setCRCLength(RF24_CRC_16);
-  
-  //rf24.setPayloadSize(PAYLOAD_SIZE);
+  rf24.setPayloadSize(PAYLOAD_SIZE);
 
-  //rf24.startListening();
+  rf24.startListening();
 
   Serial.print("starting");
 }
 
-void test() {
-  uint8_t test_buf[1] = {0x01};
-  rf24.write(test_buf, 1);
-  delay(5000);
+void loop() {
+  //test(); 
+  bool btn1State = digitalRead(BTN_1_PIN);
+  bool btn2State = digitalRead(BTN_2_PIN);
+  bool btn3State = digitalRead(BTN_3_PIN);
+  if (waitForSequence) {
+    if(rf24.available()) {
+      rf24.read(&ledSequence, PAYLOAD_SIZE);
+      Serial.println(ledSequence[curr_index]);
+      if (ledSequence[0] != 0) {
+        rf24.stopListening();
+        waitForSequence = false;
+      }
+      curr_index++;
+    }
+  } else {
+    if (btn1State == HIGH && btn1Prev == LOW) {
+      checkInput(LED_1);
+    } else if (btn2State == HIGH && btn2Prev == LOW) {
+      checkInput(LED_2);
+    } else if (btn3State == HIGH && btn3Prev == LOW) {
+      checkInput(LED_3);
+    } 
+  }
+  btn1Prev = btn1State;
+  btn2Prev = btn2State;
+  btn3Prev = btn3State;
 }
 
-void loop() {
-  test();
-//  bool btn1State = digitalRead(BTN_1_PIN);
-//  bool btn2State = digitalRead(BTN_2_PIN);
-//  bool btn3State = digitalRead(BTN_3_PIN);
-//  if (waitForSequence) {
-//    if(rf24.available()) {
-//      rf24.read(&ledSequence, PAYLOAD_SIZE);
-//      Serial.println(ledSequence[0]);
-//      if (ledSequence[0] != 0) {
-//        rf24.stopListening();
-//        waitForSequence = false;
-//      }
-//    }
-//  } else {
-//    if (btn1State == HIGH && btn1Prev == LOW) {
-//      checkInput(LED_1);
-//    } else if (btn2State == HIGH && btn2Prev == LOW) {
-//      checkInput(LED_2);
-//    } else if (btn3State == HIGH && btn3Prev == LOW) {
-//      checkInput(LED_3);
-//    } 
-//  }
-//  btn1Prev = btn1State;
-//  btn2Prev = btn2State;
-//  btn3Prev = btn3State;
-//}
-//
-//void checkInput(uint8_t LED_NUM) {
-//  if (LED_NUM == ledSequence[sequenceIndex]) {
-//    sequenceIndex++;
-//    if (sequenceIndex == PAYLOAD_SIZE || ledSequence[sequenceIndex] == 0) {
-//      uint8_t message[1] = {CORRECT_BUTTONS};
-//      rf24.write(message, 1);
-//      sequenceIndex = 0;
-//      waitForSequence = true;
-//      rf24.startListening();
-//    }
-//  } else {
-//    uint8_t message[1] = {WRONG_BUTTONS};
-//    rf24.write(message, 1);
-//    sequenceIndex = 0;
-//    waitForSequence = true;
-//    rf24.startListening();
-//  }
+void checkInput(uint8_t LED_NUM) {
+  if (LED_NUM == ledSequence[sequenceIndex]) {
+    sequenceIndex++;
+    if (sequenceIndex == PAYLOAD_SIZE || ledSequence[sequenceIndex] == 0) {
+      uint8_t message[1] = {CORRECT_BUTTONS};
+      Serial.println("RIGHT BUTTONS");
+      rf24.write(message, 1);
+      sequenceIndex = 0;
+      waitForSequence = true;
+      rf24.startListening();
+    }
+  } else {
+    uint8_t message[1] = {WRONG_BUTTONS};
+    Serial.println("WRONG BUTTONS");
+    rf24.write(message, 1);
+    sequenceIndex = 0;
+    waitForSequence = true;
+    rf24.startListening();
+  }
 }
